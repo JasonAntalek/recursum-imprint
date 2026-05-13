@@ -82,9 +82,7 @@ export function ProgressPath({
             "path-node",
             "active-imprint-node",
             isFinalReview ? "is-active-imprint" : "is-calibrated",
-            isRecalibrating ? "is-locked" : "",
           ].join(" ")}
-          disabled={isRecalibrating}
           onClick={onActiveImprintSelect}
           type="button"
         >

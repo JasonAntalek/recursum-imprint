@@ -603,31 +603,61 @@ export default function App() {
     );
   }
 
+  function completeRecalibration() {
+    const completedAt = new Date().toISOString();
+
+    markRoomComplete(currentRoom.id, completedAt);
+    setTestingMetrics((currentMetrics) => ({
+      ...currentMetrics,
+      roomCompletedAt: {
+        ...currentMetrics.roomCompletedAt,
+        [currentRoom.id]: currentMetrics.roomCompletedAt[currentRoom.id] ?? completedAt,
+      },
+    }));
+    setProfileInstructionsUpdated(true);
+    setProfileInstructionsCopied(false);
+    setCopyInstructionsStatus("");
+    setRecalibrationMode(false);
+    setReturnToFinalAfterRoom(false);
+    setReturnRoomIndex(null);
+    setReopenMessage("");
+    setShowThresholdPreview(false);
+    setShowMidpointRecognition(false);
+    setIsCurrentRoomValid(false);
+    setReviewVisible(true);
+  }
+
+  function handleRecalibrationBack() {
+    setShowThresholdPreview(false);
+    setShowMidpointRecognition(false);
+    setIsCurrentRoomValid(false);
+    setCurrentRoomIndex((index) => Math.max(0, index - 1));
+  }
+
+  function handleRecalibrationNext() {
+    if (!isCurrentRoomComplete) {
+      return;
+    }
+
+    markRoomComplete(currentRoom.id, new Date().toISOString());
+    setShowThresholdPreview(false);
+    setShowMidpointRecognition(false);
+    setIsCurrentRoomValid(false);
+    setCurrentRoomIndex((index) => Math.min(imprintRooms.length - 1, index + 1));
+  }
+
   function handleContinue() {
     if (!canApplyCurrentRoom) {
       return;
     }
 
-    const completedAt = new Date().toISOString();
-    markRoomComplete(currentRoom.id, completedAt);
-
     if (returnToFinalAfterRoom) {
-      setTestingMetrics((currentMetrics) => ({
-        ...currentMetrics,
-        roomCompletedAt: {
-          ...currentMetrics.roomCompletedAt,
-          [currentRoom.id]: currentMetrics.roomCompletedAt[currentRoom.id] ?? completedAt,
-        },
-      }));
-      setProfileInstructionsUpdated(true);
-      setProfileInstructionsCopied(false);
-      setCopyInstructionsStatus("");
-      setRecalibrationMode(false);
-      setReturnToFinalAfterRoom(false);
-      setReopenMessage("");
-      setReviewVisible(true);
+      completeRecalibration();
       return;
     }
+
+    const completedAt = new Date().toISOString();
+    markRoomComplete(currentRoom.id, completedAt);
 
     if (returnRoomIndex !== null) {
       setCurrentRoomIndex(returnRoomIndex);
@@ -723,6 +753,15 @@ export default function App() {
 
   function handleActiveImprintSelect() {
     if (!isInitialImprintComplete) {
+      return;
+    }
+
+    if (returnToFinalAfterRoom) {
+      if (!isCurrentRoomComplete) {
+        return;
+      }
+
+      completeRecalibration();
       return;
     }
 
@@ -862,24 +901,58 @@ export default function App() {
                 showThresholdPreview={showThresholdPreview}
               />
               <footer className="navigation-bar">
-                <button
-                  className="nav-button secondary"
-                  disabled={!canGoBack && !returnToFinalAfterRoom}
-                  onClick={handleBack}
-                  type="button"
-                >
-                  <ChevronLeft size={18} />
-                  Back
-                </button>
-                <button
-                  className="nav-button primary"
-                  disabled={!canApplyCurrentRoom}
-                  onClick={handleContinue}
-                  type="button"
-                >
-                  {returnToFinalAfterRoom ? "Update Imprint" : "Continue"}
-                  <ChevronRight size={18} />
-                </button>
+                {returnToFinalAfterRoom ? (
+                  <>
+                    <button
+                      className="nav-button secondary"
+                      disabled={currentRoomIndex === 0}
+                      onClick={handleRecalibrationBack}
+                      type="button"
+                    >
+                      <ChevronLeft size={18} />
+                      Back
+                    </button>
+                    <button
+                      className="nav-button secondary"
+                      disabled={!isCurrentRoomComplete || currentRoomIndex === imprintRooms.length - 1}
+                      onClick={handleRecalibrationNext}
+                      type="button"
+                    >
+                      Next
+                      <ChevronRight size={18} />
+                    </button>
+                    <button
+                      className="nav-button primary"
+                      disabled={!canApplyCurrentRoom}
+                      onClick={handleContinue}
+                      type="button"
+                    >
+                      Update Imprint
+                      <ChevronRight size={18} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      className="nav-button secondary"
+                      disabled={!canGoBack}
+                      onClick={handleBack}
+                      type="button"
+                    >
+                      <ChevronLeft size={18} />
+                      Back
+                    </button>
+                    <button
+                      className="nav-button primary"
+                      disabled={!canApplyCurrentRoom}
+                      onClick={handleContinue}
+                      type="button"
+                    >
+                      Continue
+                      <ChevronRight size={18} />
+                    </button>
+                  </>
+                )}
               </footer>
             </>
           )}
