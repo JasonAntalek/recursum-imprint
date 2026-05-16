@@ -9,6 +9,18 @@ export type ImprintRoomId =
 
 export type SelectionMode = "single" | "multi" | "text";
 
+export type FinalNoteIntent = "additional_context" | "ready_confirmation";
+
+export interface FinalNoteToSable {
+  text: string;
+  intent: FinalNoteIntent;
+}
+
+export interface SableReadAdjustmentNote {
+  text: string;
+  updatedAt?: string;
+}
+
 export interface CardOption {
   id: string;
   label: string;

@@ -19,6 +19,15 @@ interface ImprintPanelProps {
   room: ImprintRoom;
 }
 
+interface RecursumInstructionsPanelProps {
+  className?: string;
+  instructionMessage?: string;
+  instructionStatus?: string;
+  onCopyInstructions?: () => void;
+  onDownloadInstructions?: () => void;
+  recursumInstructions?: RecursumInstructions;
+}
+
 function answerSummary(answers: ImprintAnswers, blockId: string) {
   const answer = answers[blockId];
 
@@ -146,6 +155,47 @@ function regulationSummary(answers: ImprintAnswers) {
   return selected.length > 0 ? `Regulation: ${selected.join(", ")}` : "";
 }
 
+export function RecursumInstructionsPanel({
+  className = "",
+  instructionMessage,
+  instructionStatus = "Ready to copy",
+  onCopyInstructions,
+  onDownloadInstructions,
+  recursumInstructions,
+}: RecursumInstructionsPanelProps) {
+  return (
+    <aside
+      className={["imprint-panel", "recursum-instructions-panel", className].filter(Boolean).join(" ")}
+      aria-label="Recursum Instructions"
+    >
+      <div className="telemetry-header">
+        <span>RECURSUM INSTRUCTIONS</span>
+        <div className="telemetry-progress">
+          <strong>{instructionStatus}</strong>
+          <small>Operating brief</small>
+        </div>
+      </div>
+      <div className="meter">
+        <span style={{ width: "100%" }} />
+      </div>
+      <div className="instruction-copy-block">
+        <pre>{recursumInstructions?.copyBlock}</pre>
+      </div>
+      <div className="instruction-actions" aria-label="Recursum instruction actions">
+        <button className="nav-button primary" onClick={onCopyInstructions} type="button">
+          <Clipboard size={18} />
+          Copy Recursum Instructions
+        </button>
+        <button className="nav-button secondary" onClick={onDownloadInstructions} type="button">
+          <Download size={18} />
+          Download Instructions
+        </button>
+      </div>
+      {instructionMessage ? <p className="copy-status">{instructionMessage}</p> : null}
+    </aside>
+  );
+}
+
 export function ImprintPanel({
   answers,
   calibrationStarted,
@@ -214,35 +264,28 @@ export function ImprintPanel({
     },
     { label: "Direction", value: directionSummary },
   ];
+  const renderSignalRows = () =>
+    signals.map((signal) => {
+      const [lead, ...details] = signal.value.split("\n").filter(Boolean);
+
+      return (
+        <div className="signal-row" key={signal.label}>
+          <span>{signal.label}</span>
+          <strong>{lead}</strong>
+          {details.length > 0 ? <p className="signal-detail">{details.join("\n")}</p> : null}
+        </div>
+      );
+    });
 
   if (isFinalReview) {
     return (
-      <aside className="imprint-panel recursum-instructions-panel" aria-label="Recursum Instructions">
-        <div className="telemetry-header">
-          <span>RECURSUM INSTRUCTIONS</span>
-          <div className="telemetry-progress">
-            <strong>{instructionStatus}</strong>
-            <small>Operating brief</small>
-          </div>
-        </div>
-        <div className="meter">
-          <span style={{ width: "100%" }} />
-        </div>
-        <div className="instruction-copy-block">
-          <pre>{recursumInstructions?.copyBlock}</pre>
-        </div>
-        <div className="instruction-actions" aria-label="Recursum instruction actions">
-          <button className="nav-button primary" onClick={onCopyInstructions} type="button">
-            <Clipboard size={18} />
-            Copy Recursum Instructions
-          </button>
-          <button className="nav-button secondary" onClick={onDownloadInstructions} type="button">
-            <Download size={18} />
-            Download Instructions
-          </button>
-        </div>
-        {instructionMessage ? <p className="copy-status">{instructionMessage}</p> : null}
-      </aside>
+      <RecursumInstructionsPanel
+        instructionMessage={instructionMessage}
+        instructionStatus={instructionStatus}
+        onCopyInstructions={onCopyInstructions}
+        onDownloadInstructions={onDownloadInstructions}
+        recursumInstructions={recursumInstructions}
+      />
     );
   }
 
@@ -272,19 +315,16 @@ export function ImprintPanel({
         <span>{isFinalReview ? "Output" : "Current room"}</span>
         <strong>{isFinalReview ? "Mini-Bio / Profile Instructions" : room.title}</strong>
       </div>
-      <div className="signal-stack">
-        {signals.map((signal) => {
-          const [lead, ...details] = signal.value.split("\n").filter(Boolean);
-
-          return (
-            <div className="signal-row" key={signal.label}>
-              <span>{signal.label}</span>
-              <strong>{lead}</strong>
-              {details.length > 0 ? <p className="signal-detail">{details.join("\n")}</p> : null}
-            </div>
-          );
-        })}
+      <div className="signal-stack desktop-signal-stack">
+        {renderSignalRows()}
       </div>
+      <details className="mobile-imprint-drawer">
+        <summary>
+          <span>View Imprint</span>
+          <strong>{calibrationStatus}</strong>
+        </summary>
+        <div className="signal-stack mobile-signal-stack">{renderSignalRows()}</div>
+      </details>
     </aside>
   );
 }

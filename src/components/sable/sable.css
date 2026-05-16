@@ -198,19 +198,63 @@
 }
 
 @media (max-width: 720px) {
-  .sable-presence,
-  .sable-presence--threshold,
-  .sable-presence--imprint {
-    grid-template-columns: 1fr;
+  .sable-presence {
+    gap: 12px;
+    padding: 14px;
   }
 
+  .sable-status,
+  .sable-readout span {
+    font-size: 0.66rem;
+    letter-spacing: 0.14em;
+  }
+
+  .sable-presence--threshold,
+  .sable-presence--imprint,
   .sable-presence--room,
   .sable-presence--compact {
     grid-template-columns: auto 1fr;
   }
 
-  .sable-presence--threshold .sable-portrait,
+  .sable-presence--threshold {
+    margin-top: 20px;
+  }
+
+  .sable-presence--threshold .sable-portrait {
+    border-radius: 16px;
+    height: 112px;
+    width: 92px;
+  }
+
+  .sable-presence--room .sable-portrait {
+    height: 64px;
+    width: 64px;
+  }
+
   .sable-presence--imprint .sable-portrait {
-    width: 100%;
+    height: 96px;
+    width: 84px;
+  }
+
+  .sable-presence--threshold .sable-presence__copy p,
+  .sable-presence__copy p {
+    font-size: 0.96rem;
+    line-height: 1.5;
+  }
+
+  .sable-readout {
+    align-items: start;
+    grid-template-columns: 34px 1fr;
+    padding: 12px;
+  }
+
+  .sable-readout__mark {
+    height: 34px;
+    width: 34px;
+  }
+
+  .sable-readout__mark img {
+    height: 24px;
+    width: 24px;
   }
 }

@@ -1,4 +1,9 @@
-import type { ImprintAnswer, ImprintAnswers } from "../types/imprint";
+import type {
+  FinalNoteToSable,
+  ImprintAnswer,
+  ImprintAnswers,
+  SableReadAdjustmentNote,
+} from "../types/imprint";
 
 type ProfileStatus = "draft" | "active" | "provisional" | "route_selected";
 
@@ -7,6 +12,8 @@ type PrivacyLevel = "named" | "label_only" | "not_provided";
 interface ExportImprintPayloadArgs {
   answers: ImprintAnswers;
   behaviorRules: string[];
+  finalNoteToSable?: FinalNoteToSable;
+  sableReadAdjustmentNote?: SableReadAdjustmentNote;
   profileStatus: ProfileStatus;
   selectedRoute?: string | null;
 }
@@ -221,6 +228,8 @@ function jsonSafeSnapshot(answers: ImprintAnswers) {
 export function exportImprintPayload({
   answers,
   behaviorRules,
+  finalNoteToSable,
+  sableReadAdjustmentNote,
   profileStatus,
   selectedRoute = null,
 }: ExportImprintPayloadArgs) {
@@ -242,6 +251,8 @@ export function exportImprintPayload({
   const learningPreference = selectionSet(answers["learning-preference"]);
   const direction = selectionSet(answers["long-term-direction"]);
   const setbacks = selectionSet(answers["setback-response"]);
+  const finalNoteText = cleanText(finalNoteToSable?.text);
+  const readAdjustmentText = cleanText(sableReadAdjustmentNote?.text);
   const regulationPreferences = boundaries.selected.filter((value) =>
     regulationPreferenceLabels.has(value),
   );
@@ -314,6 +325,18 @@ export function exportImprintPayload({
       secondarySetbackResponses: optionalArray(setbacks.secondary),
     }),
     behaviorRules: behaviorRules.filter((rule) => rule.trim()),
+    finalNoteToSable: finalNoteText && finalNoteToSable
+      ? {
+          text: finalNoteToSable.text,
+          intent: finalNoteToSable.intent,
+        }
+      : undefined,
+    sableReadAdjustmentNote: readAdjustmentText && sableReadAdjustmentNote
+      ? withOptional({
+          text: sableReadAdjustmentNote.text,
+          updatedAt: sableReadAdjustmentNote.updatedAt,
+        })
+      : undefined,
     route: {
       selectedRoute,
     },

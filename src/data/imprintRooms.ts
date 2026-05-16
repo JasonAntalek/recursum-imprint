@@ -113,12 +113,12 @@ export const imprintRooms: ImprintRoom[] = [
       },
       {
         id: "identity-birth-details",
-        prompt: "Optional profile context",
+        prompt: "Optional Birth Details",
         mode: "text",
         required: false,
         drawer: {
           title: "Optional Birth Details",
-          body: "Use only if you want symbolic or personality lenses available later. This is stored as profile context only. No interpretation happens here.",
+          body: "For symbolic or personality lenses later. Skip freely. Stored as profile context only; no astrology, Human Design, or symbolic interpretation happens in this pass.",
         },
         textFields: [
           {

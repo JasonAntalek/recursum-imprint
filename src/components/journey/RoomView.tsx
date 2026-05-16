@@ -155,6 +155,7 @@ export function RoomView({
         {room.blocks.map((block) => {
           const answer = answers[block.id];
           const complete = hasAnswer(block, answer);
+          const isVisibleOptionalDrawer = block.id === "identity-birth-details";
 
           return (
             <article className="card-block" key={block.id}>
@@ -170,7 +171,18 @@ export function RoomView({
                 </span>
               </div>
 
-              {block.drawer ? (
+              {block.drawer && isVisibleOptionalDrawer ? (
+                <div className="block-drawer block-drawer-open">
+                  <p>{block.drawer.body}</p>
+                  <CardSelector
+                    answer={answer}
+                    block={block}
+                    onChange={(nextAnswer) => {
+                      onAnswerChange(block.id, nextAnswer);
+                    }}
+                  />
+                </div>
+              ) : block.drawer ? (
                 <details className="block-drawer">
                   <summary>{block.drawer.title}</summary>
                   <p>{block.drawer.body}</p>

@@ -1,4 +1,9 @@
-export type ImprintFlowState = "not_started" | "in_progress" | "completed" | "reviewing";
+export type ImprintFlowState =
+  | "not_started"
+  | "in_progress"
+  | "final_confirmation"
+  | "completed"
+  | "reviewing";
 export type ActiveProfileStatus = "ready" | "updated";
 
 interface GetImprintStageLabelArgs {
@@ -14,6 +19,13 @@ export function getImprintStageLabel({
   isInitialImprintComplete,
   isRecalibrationMode,
 }: GetImprintStageLabelArgs) {
+  if (flowState === "final_confirmation") {
+    return {
+      title: isInitialImprintComplete ? "ACTIVE IMPRINT" : "INITIAL IMPRINT",
+      subtitle: "Ready for Sable Read",
+    };
+  }
+
   if (isRecalibrationMode) {
     return {
       title: "RECALIBRATING IMPRINT",

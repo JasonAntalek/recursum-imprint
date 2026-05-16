@@ -1,11 +1,17 @@
 interface DevJumpButtonProps {
+  isProminent?: boolean;
   onClick: () => void;
 }
 
-export function DevJumpButton({ onClick }: DevJumpButtonProps) {
+export function DevJumpButton({ isProminent = false, onClick }: DevJumpButtonProps) {
   return (
-    <button className="dev-jump-button" onClick={onClick} type="button">
-      DEV: Jump to Completed Imprint
+    <button
+      aria-label="Developer shortcut: jump to completed imprint"
+      className={`dev-jump-button${isProminent ? " is-prominent" : ""}`}
+      onClick={onClick}
+      type="button"
+    >
+      DEV: Complete
     </button>
   );
 }

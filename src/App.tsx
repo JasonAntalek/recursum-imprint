@@ -4,20 +4,37 @@ import { sampleImprintAnswers } from "./data/sampleImprintAnswers";
 import { DevJumpButton } from "./components/dev/DevJumpButton";
 import { AppShell } from "./components/layout/AppShell";
 import { Header } from "./components/layout/Header";
-import { ImprintPanel } from "./components/imprint/ImprintPanel";
+import { ImprintPanel, RecursumInstructionsPanel } from "./components/imprint/ImprintPanel";
 import { ProgressPath } from "./components/journey/ProgressPath";
 import { isRoomComplete, RoomView } from "./components/journey/RoomView";
 import { SablePresence } from "./components/sable/SablePresence";
 import { exportImprintPayload } from "./logic/exportImprintPayload";
+import { createFinalNoteToSable, hasFinalNoteText } from "./logic/finalNoteToSable";
 import { generateBehaviorRules } from "./logic/generateBehaviorRules";
 import { generateRecursumInstructions } from "./logic/generateRecursumInstructions";
 import { generateSableRead } from "./logic/generateSableRead";
 import { getImprintStageLabel, type ImprintFlowState } from "./logic/getImprintStageLabel";
-import type { ImprintAnswer, ImprintAnswers, ImprintRoomId } from "./types/imprint";
+import type {
+  FinalNoteToSable,
+  ImprintAnswer,
+  ImprintAnswers,
+  ImprintRoomId,
+  SableReadAdjustmentNote,
+} from "./types/imprint";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 // TEMP DEV TOOL: remove or set false before public production use.
 const SHOW_DEV_TOOLS = true;
+
+const FINAL_NOTE_PLACEHOLDER = [
+  "Ready.",
+  "Nothing else.",
+  "Please remember that I work best under clear deadlines.",
+  "I\u2019m in transition right now, so context may change.",
+].join("\n");
+
+const READ_REFINEMENT_PLACEHOLDER =
+  "Example: The friction pattern is right, but it shows up most in business decisions, not personal ones.";
 
 const profileSections: Array<{ label: string; roomId: ImprintRoomId }> = [
   { label: "Identity Anchor", roomId: "identity" },
@@ -281,31 +298,119 @@ function testingSnapshot(metrics: TestingMetrics) {
   };
 }
 
+function FinalNoteToSableView({
+  finalNoteToSable,
+  onBack,
+  onGenerate,
+  onTextChange,
+}: {
+  finalNoteToSable: FinalNoteToSable;
+  onBack: () => void;
+  onGenerate: () => void;
+  onTextChange: (text: string) => void;
+}) {
+  const noteReady = hasFinalNoteText(finalNoteToSable);
+
+  return (
+    <section className="room-view final-note-view" aria-labelledby="final-note-title">
+      <div className="panel-kicker">FINAL CONFIRMATION</div>
+      <h2 id="final-note-title">Final Note to Sable</h2>
+      <p className="final-note-helper">
+        Last check. If the cards missed something important, put it here. If not, write{" "}
+        &ldquo;Ready&rdquo; and I&rsquo;ll make the read.
+      </p>
+      <SablePresence
+        message="This is the closing handoff. One last note, or a simple ready signal, then Sable can make the read."
+        statusLabel={noteReady ? "READY FOR SABLE READ" : "FINAL NOTE NEEDED"}
+        variant="room"
+      />
+      <article className="card-block final-note-panel">
+        <div className="block-header">
+          <div>
+            <p className="block-prompt">Final Note to Sable</p>
+            <span className="block-meta">Required handoff</span>
+          </div>
+          <span className={["required-chip", noteReady ? "is-complete" : ""].join(" ")}>
+            {noteReady ? "Set" : "Required"}
+          </span>
+        </div>
+        <textarea
+          aria-label="Final Note to Sable"
+          className="final-note-textarea"
+          onChange={(event) => onTextChange(event.target.value)}
+          placeholder={FINAL_NOTE_PLACEHOLDER}
+          required
+          rows={8}
+          value={finalNoteToSable.text}
+        />
+      </article>
+      <footer className="navigation-bar final-note-actions">
+        <button className="nav-button secondary" onClick={onBack} type="button">
+          <ChevronLeft size={18} />
+          Back
+        </button>
+        <button
+          className="nav-button primary"
+          disabled={!noteReady}
+          onClick={onGenerate}
+          type="button"
+        >
+          Generate Sable Read
+          <ChevronRight size={18} />
+        </button>
+      </footer>
+    </section>
+  );
+}
+
 function ReviewPlaceholder({
   answers,
   behaviorRules,
+  finalNoteToSable,
+  instructionMessage,
+  instructionStatus,
+  onCopyInstructions,
+  onDownloadInstructions,
   onPayloadCopied,
   onCloseRecalibrate,
   onRecalibrateProfile,
   onSelectProfileSection,
+  onUpdateSableRead,
   recalibrationMode,
+  recursumInstructions,
+  sableReadAdjustmentNote,
   stageSubtitle,
   testingMetrics,
 }: {
   answers: ImprintAnswers;
   behaviorRules: string[];
+  finalNoteToSable: FinalNoteToSable;
+  instructionMessage?: string;
+  instructionStatus?: string;
+  onCopyInstructions: () => void;
+  onDownloadInstructions: () => void;
   onPayloadCopied: () => void;
   onCloseRecalibrate: () => void;
   onRecalibrateProfile: () => void;
   onSelectProfileSection: (roomId: ImprintRoomId) => void;
+  onUpdateSableRead: (text: string) => void;
   recalibrationMode: boolean;
+  recursumInstructions: ReturnType<typeof generateRecursumInstructions>;
+  sableReadAdjustmentNote?: SableReadAdjustmentNote;
   stageSubtitle: string;
   testingMetrics: TestingMetrics;
 }) {
   const [copyStatus, setCopyStatus] = useState("");
+  const [readRefinementStatus, setReadRefinementStatus] = useState("");
+  const [readRefinementText, setReadRefinementText] = useState(
+    sableReadAdjustmentNote?.text ?? "",
+  );
   const [testingCopyStatus, setTestingCopyStatus] = useState("");
   const recalibrationPanelRef = useRef<HTMLDivElement>(null);
-  const sableRead = useMemo(() => generateSableRead(answers), [answers]);
+  const sableRead = useMemo(
+    () => generateSableRead(answers, finalNoteToSable, sableReadAdjustmentNote),
+    [answers, finalNoteToSable, sableReadAdjustmentNote],
+  );
   const snapshot = useMemo(() => testingSnapshot(testingMetrics), [testingMetrics]);
   const testingJson = useMemo(() => JSON.stringify(snapshot, null, 2), [snapshot]);
   const payload = useMemo(
@@ -313,13 +418,17 @@ function ReviewPlaceholder({
       exportImprintPayload({
         answers,
         behaviorRules,
+        finalNoteToSable,
+        sableReadAdjustmentNote,
         profileStatus: "active",
         selectedRoute: null,
       }),
-    [answers, behaviorRules],
+    [answers, behaviorRules, finalNoteToSable, sableReadAdjustmentNote],
   );
   const payloadJson = useMemo(() => JSON.stringify(payload, null, 2), [payload]);
   const nameSlug = filenamePart(answers["identity-name"]?.text);
+  const hasSavedReadAdjustment = Boolean(sableReadAdjustmentNote?.text.trim());
+  const canUpdateSableRead = readRefinementText.trim().length > 0 || hasSavedReadAdjustment;
 
   async function copyPayload() {
     if (await copyTextToClipboard(payloadJson)) {
@@ -344,10 +453,30 @@ function ReviewPlaceholder({
     downloadTextFile(`sable-read-${nameSlug}.md`, formatSableReadMarkdown(sableRead));
   }
 
+  function updateSableRead() {
+    if (!canUpdateSableRead) {
+      return;
+    }
+
+    onUpdateSableRead(readRefinementText);
+    setReadRefinementStatus("Sable Read updated.");
+  }
+
+  useEffect(() => {
+    setReadRefinementText(sableReadAdjustmentNote?.text ?? "");
+  }, [sableReadAdjustmentNote?.text]);
+
   useEffect(() => {
     if (!recalibrationMode) {
       return;
     }
+
+    requestAnimationFrame(() => {
+      recalibrationPanelRef.current?.scrollIntoView({
+        block: "center",
+        behavior: "smooth",
+      });
+    });
 
     function handlePointerDown(event: PointerEvent) {
       const target = event.target;
@@ -402,6 +531,40 @@ function ReviewPlaceholder({
           <p>{sableRead.closingLine}</p>
         </section>
       </div>
+      <details className="read-refinement-panel" open>
+        <summary>Refine the Sable Read</summary>
+        <p>Something off, missing, or too strong? Tell Sable what to adjust.</p>
+        <textarea
+          aria-label="Refine the Sable Read"
+          className="read-refinement-textarea"
+          onChange={(event) => {
+            setReadRefinementText(event.target.value);
+            setReadRefinementStatus("");
+          }}
+          placeholder={READ_REFINEMENT_PLACEHOLDER}
+          rows={5}
+          value={readRefinementText}
+        />
+        <div className="read-refinement-actions">
+          <button
+            className="nav-button primary"
+            disabled={!canUpdateSableRead}
+            onClick={updateSableRead}
+            type="button"
+          >
+            Update Sable Read
+          </button>
+          {readRefinementStatus ? <span>{readRefinementStatus}</span> : null}
+        </div>
+      </details>
+      <RecursumInstructionsPanel
+        className="mobile-recursum-instructions-panel"
+        instructionMessage={instructionMessage}
+        instructionStatus={instructionStatus}
+        onCopyInstructions={onCopyInstructions}
+        onDownloadInstructions={onDownloadInstructions}
+        recursumInstructions={recursumInstructions}
+      />
       <div className="final-actions" aria-label="Profile output actions">
         <button
           className="nav-button secondary"
@@ -489,7 +652,13 @@ export default function App() {
   const [answers, setAnswers] = useState<ImprintAnswers>({});
   const [isCurrentRoomValid, setIsCurrentRoomValid] = useState(false);
   const [calibrationStarted, setCalibrationStarted] = useState(false);
+  const [finalNoteVisible, setFinalNoteVisible] = useState(false);
+  const [finalNoteToSable, setFinalNoteToSable] = useState(() => createFinalNoteToSable(""));
+  const [sableReadAdjustmentNote, setSableReadAdjustmentNote] = useState<
+    SableReadAdjustmentNote | undefined
+  >(undefined);
   const [reviewVisible, setReviewVisible] = useState(false);
+  const [sableReadGenerated, setSableReadGenerated] = useState(false);
   const [showThresholdPreview, setShowThresholdPreview] = useState(false);
   const [showMidpointRecognition, setShowMidpointRecognition] = useState(false);
   const [midpointRecognitionSeen, setMidpointRecognitionSeen] = useState(false);
@@ -500,6 +669,7 @@ export default function App() {
   const [recalibrationMode, setRecalibrationMode] = useState(false);
   const [returnToFinalAfterRoom, setReturnToFinalAfterRoom] = useState(false);
   const [completedRoomIds, setCompletedRoomIds] = useState<string[]>([]);
+  const [devJumpProminent, setDevJumpProminent] = useState(false);
   const [furthestRoomIndexReached, setFurthestRoomIndexReached] = useState(0);
   const [returnRoomIndex, setReturnRoomIndex] = useState<number | null>(null);
   const [reopenMessage, setReopenMessage] = useState("");
@@ -509,10 +679,18 @@ export default function App() {
     [],
   );
   const recursumInstructions = useMemo(
-    () => generateRecursumInstructions(answers, behaviorRules),
-    [answers, behaviorRules],
+    () =>
+      generateRecursumInstructions(
+        answers,
+        behaviorRules,
+        finalNoteToSable,
+        sableReadAdjustmentNote,
+      ),
+    [answers, behaviorRules, finalNoteToSable, sableReadAdjustmentNote],
   );
-  const isInitialImprintComplete = completedRoomIds.length === imprintRooms.length;
+  const roomsCompleted = completedRoomIds.length === imprintRooms.length;
+  const isInitialImprintComplete = roomsCompleted && sableReadGenerated;
+  const isFinalNoteReady = hasFinalNoteText(finalNoteToSable);
 
   const canGoBack = currentRoomIndex > 0;
   const isFinalRoom = currentRoomIndex === imprintRooms.length - 1;
@@ -521,6 +699,23 @@ export default function App() {
     [answers, currentRoom],
   );
   const canApplyCurrentRoom = returnToFinalAfterRoom ? isCurrentRoomComplete : isCurrentRoomValid;
+
+  useEffect(() => {
+    if (!SHOW_DEV_TOOLS) {
+      return;
+    }
+
+    function syncDevJumpVisibility() {
+      setDevJumpProminent(window.scrollY > 160);
+    }
+
+    syncDevJumpVisibility();
+    window.addEventListener("scroll", syncDevJumpVisibility, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", syncDevJumpVisibility);
+    };
+  }, []);
 
   useEffect(() => {
     const scrollTarget = journeyTopRef.current;
@@ -532,7 +727,7 @@ export default function App() {
     requestAnimationFrame(() => {
       scrollTarget.scrollIntoView({ block: "start", behavior: "smooth" });
     });
-  }, [currentRoomIndex, reviewVisible]);
+  }, [currentRoomIndex, finalNoteVisible, reviewVisible]);
 
   useEffect(() => {
     if (currentRoom.id === "pressure" && !midpointRecognitionSeen) {
@@ -565,7 +760,75 @@ export default function App() {
     }));
   }, []);
 
+  function handleFinalNoteTextChange(text: string) {
+    setFinalNoteToSable(createFinalNoteToSable(text));
+  }
+
+  function showFinalNoteToSable() {
+    setFinalNoteVisible(true);
+    setReviewVisible(false);
+    setRecalibrationMode(false);
+    setShowThresholdPreview(false);
+    setShowMidpointRecognition(false);
+    setIsCurrentRoomValid(false);
+  }
+
+  function handleGenerateSableRead() {
+    if (!isFinalNoteReady) {
+      return;
+    }
+
+    const completedAt = new Date().toISOString();
+    const isRegenerating = sableReadGenerated || returnToFinalAfterRoom;
+
+    setCompletedRoomIds(imprintRooms.map((room) => room.id));
+    setTestingMetrics((currentMetrics) => ({
+      ...currentMetrics,
+      roomCompletedAt: {
+        ...currentMetrics.roomCompletedAt,
+        [currentRoom.id]: currentMetrics.roomCompletedAt[currentRoom.id] ?? completedAt,
+      },
+      totalCompletionTime:
+        currentMetrics.totalCompletionTime ??
+        Date.parse(completedAt) - Date.parse(currentMetrics.sessionStartedAt),
+    }));
+    setSableReadGenerated(true);
+    setFinalNoteVisible(false);
+    setReviewVisible(true);
+    setRecalibrationMode(false);
+    setReturnToFinalAfterRoom(false);
+    setReturnRoomIndex(null);
+    setReopenMessage("");
+    setShowThresholdPreview(false);
+    setShowMidpointRecognition(false);
+    setIsCurrentRoomValid(false);
+    setCopyInstructionsStatus("");
+    setProfileInstructionsCopied(false);
+    setProfileInstructionsUpdated(isRegenerating);
+  }
+
+  function handleUpdateSableReadAdjustment(text: string) {
+    const trimmed = text.trim();
+
+    setSableReadAdjustmentNote(
+      trimmed
+        ? {
+            text,
+            updatedAt: new Date().toISOString(),
+          }
+        : undefined,
+    );
+    setCopyInstructionsStatus("");
+    setProfileInstructionsCopied(false);
+    setProfileInstructionsUpdated(true);
+  }
+
   function handleBack() {
+    if (finalNoteVisible) {
+      setFinalNoteVisible(false);
+      return;
+    }
+
     if (reviewVisible) {
       setReviewVisible(false);
       return;
@@ -652,6 +915,12 @@ export default function App() {
     }
 
     if (returnToFinalAfterRoom) {
+      if (isFinalRoom) {
+        markRoomComplete(currentRoom.id, new Date().toISOString());
+        showFinalNoteToSable();
+        return;
+      }
+
       completeRecalibration();
       return;
     }
@@ -673,13 +942,10 @@ export default function App() {
           ...currentMetrics.roomCompletedAt,
           [currentRoom.id]: currentMetrics.roomCompletedAt[currentRoom.id] ?? completedAt,
         },
-        totalCompletionTime:
-          currentMetrics.totalCompletionTime ??
-          Date.parse(completedAt) - Date.parse(currentMetrics.sessionStartedAt),
       }));
       setCompletedRoomIds(imprintRooms.map((room) => room.id));
       setFurthestRoomIndexReached(imprintRooms.length - 1);
-      setReviewVisible(true);
+      showFinalNoteToSable();
       return;
     }
 
@@ -744,6 +1010,7 @@ export default function App() {
     setCurrentRoomIndex(roomIndex);
     setReturnToFinalAfterRoom(true);
     setRecalibrationMode(false);
+    setFinalNoteVisible(false);
     setReviewVisible(false);
     setShowThresholdPreview(false);
     setShowMidpointRecognition(false);
@@ -761,11 +1028,18 @@ export default function App() {
         return;
       }
 
+      if (isFinalRoom) {
+        markRoomComplete(currentRoom.id, new Date().toISOString());
+        showFinalNoteToSable();
+        return;
+      }
+
       completeRecalibration();
       return;
     }
 
     setReviewVisible(true);
+    setFinalNoteVisible(false);
     setRecalibrationMode(false);
     setReturnToFinalAfterRoom(false);
     setReturnRoomIndex(null);
@@ -777,10 +1051,14 @@ export default function App() {
 
   function handleDevJumpToCompletedImprint() {
     setAnswers(sampleImprintAnswers);
+    setFinalNoteToSable(createFinalNoteToSable("Ready"));
+    setSableReadAdjustmentNote(undefined);
     setCurrentRoomIndex(imprintRooms.length - 1);
     setIsCurrentRoomValid(true);
     setCalibrationStarted(true);
+    setFinalNoteVisible(false);
     setReviewVisible(true);
+    setSableReadGenerated(true);
     setShowThresholdPreview(false);
     setShowMidpointRecognition(false);
     setMidpointRecognitionSeen(true);
@@ -815,6 +1093,7 @@ export default function App() {
     }
 
     setCurrentRoomIndex(roomIndex);
+    setFinalNoteVisible(false);
     setReviewVisible(false);
     setRecalibrationMode(false);
     setShowThresholdPreview(false);
@@ -822,41 +1101,53 @@ export default function App() {
     setIsCurrentRoomValid(false);
   }
 
-  const panelStatus = reviewVisible
-    ? recalibrationMode
-      ? "Recalibration active"
-      : profileInstructionsCopied
-        ? "Copied"
-        : profileInstructionsUpdated
-          ? "Updated"
-          : "Ready to copy"
-    : returnToFinalAfterRoom
-      ? "Recalibration active"
-      : undefined;
+  const panelStatus = finalNoteVisible
+    ? isFinalNoteReady
+      ? "Ready for Sable Read"
+      : "Final Note Needed"
+    : reviewVisible
+      ? recalibrationMode
+        ? "Recalibration active"
+        : profileInstructionsCopied
+          ? "Copied"
+          : profileInstructionsUpdated
+            ? "Updated"
+            : "Ready to copy"
+      : returnToFinalAfterRoom
+        ? "Recalibration active"
+        : undefined;
   const instructionStatus = profileInstructionsCopied
     ? "Copied"
     : profileInstructionsUpdated
       ? "Updated"
       : "Ready to copy";
-  const flowState: ImprintFlowState = reviewVisible
-    ? "completed"
-    : calibrationStarted
-      ? "in_progress"
-      : "not_started";
+  const flowState: ImprintFlowState = finalNoteVisible
+    ? "final_confirmation"
+    : reviewVisible
+      ? "completed"
+      : calibrationStarted
+        ? "in_progress"
+        : "not_started";
   const stageLabel = getImprintStageLabel({
     activeProfileStatus: profileInstructionsUpdated ? "updated" : "ready",
     flowState,
     isInitialImprintComplete,
-    isRecalibrationMode: recalibrationMode || returnToFinalAfterRoom,
+    isRecalibrationMode: !finalNoteVisible && (recalibrationMode || returnToFinalAfterRoom),
   });
 
   return (
     <AppShell>
-      {SHOW_DEV_TOOLS ? <DevJumpButton onClick={handleDevJumpToCompletedImprint} /> : null}
+      {SHOW_DEV_TOOLS ? (
+        <DevJumpButton
+          isProminent={devJumpProminent}
+          onClick={handleDevJumpToCompletedImprint}
+        />
+      ) : null}
       <Header subtitle={stageLabel.subtitle} title={stageLabel.title} />
       <ProgressPath
         completedRoomIds={completedRoomIds}
         currentRoomIndex={currentRoomIndex}
+        isFinalConfirmation={finalNoteVisible}
         isFinalReview={reviewVisible}
         isInitialImprintComplete={isInitialImprintComplete}
         isRecalibrating={returnToFinalAfterRoom}
@@ -866,13 +1157,18 @@ export default function App() {
       />
       <div className="journey-top-anchor" ref={journeyTopRef} />
 
-      <div className="workspace-grid">
+      <div className={["workspace-grid", reviewVisible ? "is-final-review" : ""].join(" ")}>
         <div className="journey-content">
           {reviewVisible ? (
             <ReviewPlaceholder
               answers={answers}
               behaviorRules={behaviorRules}
+              finalNoteToSable={finalNoteToSable}
+              instructionMessage={copyInstructionsStatus}
+              instructionStatus={instructionStatus}
               onCloseRecalibrate={() => setRecalibrationMode(false)}
+              onCopyInstructions={() => handleCopyInstructions(recursumInstructions.copyBlock)}
+              onDownloadInstructions={handleDownloadInstructions}
               onPayloadCopied={() =>
                 setTestingMetrics((currentMetrics) => ({
                   ...currentMetrics,
@@ -881,9 +1177,19 @@ export default function App() {
               }
               onRecalibrateProfile={handleRecalibrateProfile}
               onSelectProfileSection={handleSelectProfileSection}
+              onUpdateSableRead={handleUpdateSableReadAdjustment}
               recalibrationMode={recalibrationMode}
+              recursumInstructions={recursumInstructions}
+              sableReadAdjustmentNote={sableReadAdjustmentNote}
               stageSubtitle={stageLabel.subtitle}
               testingMetrics={testingMetrics}
+            />
+          ) : finalNoteVisible ? (
+            <FinalNoteToSableView
+              finalNoteToSable={finalNoteToSable}
+              onBack={handleBack}
+              onGenerate={handleGenerateSableRead}
+              onTextChange={handleFinalNoteTextChange}
             />
           ) : (
             <>

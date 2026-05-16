@@ -1,5 +1,14 @@
-import type { ImprintAnswers } from "../types/imprint";
+import type {
+  FinalNoteToSable,
+  ImprintAnswers,
+  SableReadAdjustmentNote,
+} from "../types/imprint";
 import type { SableRead } from "../types/sable";
+import { finalNoteAdditionalContext } from "./finalNoteToSable";
+import {
+  sableReadAdjustmentKind,
+  sableReadAdjustmentText,
+} from "./sableReadAdjustmentNote";
 import {
   cleanText,
   decisionInstruction,
@@ -40,7 +49,11 @@ function closingLine(name: string | undefined, friction?: string, direction?: st
   return `${userSubject(name)} ${userVerb(name, "do", "does")} not need a grand label. ${userSubject(name)} ${userVerb(name, "need", "needs")} a useful starting pattern.`;
 }
 
-export function generateSableRead(answers: ImprintAnswers): SableRead {
+export function generateSableRead(
+  answers: ImprintAnswers,
+  finalNoteToSable?: FinalNoteToSable,
+  sableReadAdjustmentNote?: SableReadAdjustmentNote,
+): SableRead {
   const name = cleanText(answers["identity-name"]?.text);
   const descriptors = selectionSet(answers, "core-descriptors");
   const motivator = selectionSet(answers, "action-motivation");
@@ -62,6 +75,9 @@ export function generateSableRead(answers: ImprintAnswers): SableRead {
   const directName = fallbackName(name);
   const regulationMove = regulationInstruction(regulation);
   const decisionMove = decisionInstruction(decision.primary);
+  const finalContext = finalNoteAdditionalContext(finalNoteToSable);
+  const readAdjustment = sableReadAdjustmentText(sableReadAdjustmentNote);
+  const readAdjustmentKind = sableReadAdjustmentKind(sableReadAdjustmentNote);
 
   const signal =
     sentence([
@@ -86,6 +102,9 @@ export function generateSableRead(answers: ImprintAnswers): SableRead {
       leadership.primary
         ? `In collaboration, ${directName} tends toward ${lowerFirst(leadership.primary)}.`
         : undefined,
+      readAdjustment && readAdjustmentKind === "tone"
+        ? `After seeing the read, adjust the delivery lens: ${punctuate(readAdjustment)}`
+        : undefined,
       responseStyle.primary || learning.primary
         ? `Recursum should be ${[
             responseStyle.primary ? lowerFirst(responseStyle.primary) : undefined,
@@ -108,6 +127,9 @@ export function generateSableRead(answers: ImprintAnswers): SableRead {
         ? `When decisions get murky, ${decisionMove ?? `support the ${lowerFirst(decision.primary)} pattern`}.`
         : undefined,
       regulationMove ? `When intensity rises, ${regulationMove}.` : undefined,
+      readAdjustment && readAdjustmentKind === "scope"
+        ? `Scope the card signal with this refinement: ${punctuate(readAdjustment)}`
+        : undefined,
     ]) || "The edge is over-expanding the read before the user has given enough context. Keep it clean.";
   const bestUseOfRecursum =
     sentence([
@@ -121,6 +143,10 @@ export function generateSableRead(answers: ImprintAnswers): SableRead {
         ? `Let recommendations serve ${lowerFirst(direction.primary)}.`
         : undefined,
       fiveYearPicture ? `Keep the five-year picture in view: ${punctuate(fiveYearPicture)}` : undefined,
+      finalContext ? `Carry this final note as live context: ${punctuate(finalContext)}` : undefined,
+      readAdjustment && readAdjustmentKind === "general"
+        ? `Carry this post-read refinement without rewriting the card signal: ${punctuate(readAdjustment)}`
+        : undefined,
     ]) || "Use Recursum to turn the next real signal into a practical move.";
 
   return {

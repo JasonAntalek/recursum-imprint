@@ -17,6 +17,8 @@ export interface RecursumInstructions {
   decisionSupport?: string;
   pacingRegulation?: string;
   directionalFilter?: string;
+  finalNoteGuidance?: string;
+  readAdjustmentGuidance?: string;
 }
 
 export interface SableInterpreterOutput {

@@ -1,5 +1,17 @@
-import type { ImprintAnswers } from "../types/imprint";
+import type {
+  FinalNoteToSable,
+  ImprintAnswers,
+  SableReadAdjustmentNote,
+} from "../types/imprint";
 import type { RecursumInstructions } from "../types/sable";
+import {
+  finalNoteAdditionalContext,
+  finalNoteShouldGuideRecursum,
+} from "./finalNoteToSable";
+import {
+  sableReadAdjustmentShouldGuideRecursum,
+  sableReadAdjustmentText,
+} from "./sableReadAdjustmentNote";
 import {
   cleanText,
   decisionInstruction,
@@ -22,6 +34,8 @@ function hasBirthDetails(answers: ImprintAnswers) {
 export function generateRecursumInstructions(
   answers: ImprintAnswers,
   _behaviorRules: string[] = [],
+  finalNoteToSable?: FinalNoteToSable,
+  sableReadAdjustmentNote?: SableReadAdjustmentNote,
 ): RecursumInstructions {
   const name = cleanText(answers["identity-name"]?.text) ?? "this user";
   const descriptors = selectionSet(answers, "core-descriptors");
@@ -40,6 +54,16 @@ export function generateRecursumInstructions(
   const fiveYearPicture = cleanText(answers["five-year-picture"]?.text);
   const decisionMove = decisionInstruction(decision.primary);
   const regulationMove = regulationInstruction(regulation);
+  const finalNoteContext = finalNoteAdditionalContext(finalNoteToSable);
+  const finalNoteGuidance =
+    finalNoteContext && finalNoteShouldGuideRecursum(finalNoteToSable)
+      ? `Final note from user: ${punctuate(finalNoteContext)}`
+      : undefined;
+  const readAdjustmentContext = sableReadAdjustmentText(sableReadAdjustmentNote);
+  const readAdjustmentGuidance =
+    readAdjustmentContext && sableReadAdjustmentShouldGuideRecursum(sableReadAdjustmentNote)
+      ? `Read refinement: ${punctuate(readAdjustmentContext)}`
+      : undefined;
   const primarySignal = sentence([
     descriptors.selected.length > 0
       ? `${name} is ${joinList(descriptors.selected.map(lowerFirst))}.`
@@ -137,6 +161,8 @@ export function generateRecursumInstructions(
     hasBirthDetails(answers)
       ? "Optional symbolic profile data is available if the user later requests symbolic or personality lenses. Do not interpret it unless asked."
       : undefined,
+    finalNoteGuidance,
+    readAdjustmentGuidance,
   ];
 
   const copyBlock = lines
@@ -160,5 +186,7 @@ export function generateRecursumInstructions(
     decisionSupport,
     pacingRegulation,
     directionalFilter: directionalFilter || undefined,
+    finalNoteGuidance,
+    readAdjustmentGuidance,
   };
 }
